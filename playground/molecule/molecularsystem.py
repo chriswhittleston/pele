@@ -1,6 +1,7 @@
 from pele.systems.basesystem import BaseSystem
 from playground.molecule.parser import Parser, PymolParser
 from playground.molecule.molecule import Molecule, Protein
+import collections
 
 class MolecularSystem(BaseSystem):
     """ A container for general molecules which are defined as single component graphs.
@@ -14,13 +15,10 @@ class MolecularSystem(BaseSystem):
     """
     
     def __init__(self):
-        # Initialise the member variables
-        self.molecules = {}
-        self.mol_id = 0 # every time a molecule is added increment this integer
-        self.molecule_types = {}
+        self.molecules = []
 
     def select_parser(self, parser='Pymol', args='-qc'):
-        # set up the parser for the system
+        """ Set up the parser for the system. Default is using Pymol PDB parser. """
         if parser == 'Pymol':
             self.parser = PymolParser(args)
         elif parser == 'Basic':
@@ -28,8 +26,24 @@ class MolecularSystem(BaseSystem):
         else:
             # Default parser is PymolParser
             self.parser = PymolParser(args)
-        
-    def load_file(self, l_filename, parser='pymol', moleculeType='general', args='-qc'):
+
+    def molecule_types(self):
+        """ Returns a list of the hash values for each molecule."""
+        return [mol.hash_value for mol in self.molecules]
+
+    def unique_molecule_types(self):
+        """ Returns a set containing all of the unique hash values of molecules in the system. """
+        return set(self.molecule_types())
+
+    def molecule_indices_by_hash(self, hash_value):
+        """ Returns a list of molecule indices (to self.molecules) which correspond to hash_value. """
+        return [i for i, mol_type in enumerate(self.molecule_types()) if mol_type == hash_value]
+
+    def get_molecules(self, hash_value):
+        """ Returns a list of molecules with the specified hash value. """
+        return [mol for mol in self.molecules if mol.hash_value == hash_value]
+
+    def load_file(self, l_filename, parser='pymol', args='-qc'):
         ''' Function looks at a file and adds every molecule in the file 
         to the molecular system as a separate molecule. Can specify the parser used
         to analyse the file.'''
@@ -47,35 +61,34 @@ class MolecularSystem(BaseSystem):
         # loop through the graphs returned from the parser
         # and add a molecule to the dictionary each time. 
         for graph, coords in zip(l_graph_list, l_coords_list):
-            self.add_molecule(Molecule(self.mol_id, coords, graph))
-
+            self.add_molecule(Molecule(coords, graph))
 
     def add_molecule(self, molecule):
-        ''' adds a molecule to the molecular system and gives it a system id.
-        Also builds up a profile of how many of each type of molcules with distinct 
-        hash_values there are.'''
-        self.molecules[self.mol_id] = molecule
-        molecule.change_id(self.mol_id)
-        self.mol_id += 1
+        ''' Adds a molecule to the molecular system and gives it the current system id.
+        Also builds up a profile of how many of each type of molecule there are.
+        Distinct molecules are defined using their hash value.'''
+        self.molecules.append(molecule)
         
-        # builds up a list of molcule ids that have a certain hash value
+        # builds up a list of molecule ids that have a certain hash value
         try:
             self.molecule_types[molecule.hash_value] = [self.molecule_types[molecule.hash_value], molecule.id]
         except KeyError:
             self.molecule_types[molecule.hash_value] = [molecule.id]
-        
-        print self.molecule_types
+
 
     def __iter__(self):
         ''' Returns an iterator object over the molecules in the system.'''
         return self.molecules.itervalues()
 
     def __eq__(self, other):
-        ''' Function determines the equality of two molecular systems
-            based on the equality of the molecules within, and 
-            the equality of the atoms with in those.
-            Makes heavy use of the hash_value for a molecule which is expected to be unique 
-            for most molecules.'''
+        ''' Function determines the equality of two molecular systems.
+            Checks the number and type of molecules within the molecular systems
+            which both have to be identical for the molecular systems to match.
+            A molecule is equal to another molecule if:
+                i) It's hashing function is the same
+                ii) The graphs are isomorphic
+                iii) Each node in the isomorphic graphs have the same label.
+        '''
         
         #assume both systems are equal
         equal = True 
@@ -102,23 +115,23 @@ class MolecularSystem(BaseSystem):
             mols_other = set(l_mols_self)
             
             # check that the types of molecule in the two systems are the same. i.e. that neither set has a 
-            # molecule which is not in the other set. 
+            # type of molecule which is not in the other set. 
             # To help with this the hashing function in the molecule class has been over ridden.
-            # The hash function for each molecule object is now the product of the absolute values of the non-zero eigenvalues 
-            # of the adjacency matrix where the edges are weighted by the product of atomic weights at either end of the bond.
-            # Identical molecules will generate the same hash. There may be one or two random esoteric cases that
-            # generate the same hash, but this will be fluke, and the graphs are unlikely to be isomorphic.
+            # The hash function for each molecule object is the product of the absolute values of the non-zero eigenvalues 
+            # of the adjacency matrix where the edges are weighted by the square root of the product of atomic weights at either end of the bond.
+            # Topologically identical molecules will generate the same hash. There may be one or two random esoteric cases that
+            # generate the same hash, but this will be fluke, and graphs with the same hash value by mistake are unlikely to also be isomorphic.
             # Comparing the sets checks that the set of hash_functions is the same, and if they are the same
-            # then the element equivalence operator (molecule.__eq__ function) is called which checks that the molecules 
-            # have isomorphic graphs. Nodes at equivalent points in the isomorphics graph are compared using the node attribute "atom"
-            # This is a reference to the Atom objects associated with each node which triggers the Atom.__eq__ function 
-            # which checks that equivalent nodes have the same label. (a lot going on behind one simple statement!!)
+            # then the element equivalence operator (molecule.__eq__ function) is called which checks that the molecules in the sets 
+            # also have isomorphic graphs. As part of the molecule.__eq__ function the atom attribute is compared between nodes at equivalent points 
+            # in the isomorphic graph.  The atom attribute is a reference to the Atom object associated with each node. Thus the isomorphism check
+            # triggers the Atom.__eq__ function which checks whether two atoms have the same label. (a lot going on behind one simple statement!!)
             equal = mols_self == mols_other
         
         if equal:
             # we already know that the distinct number of types of molecules and the numerical values of the hash functions
             # of those classes of molecule are the same for both systems. Now we check the number of each type of molecule.
-            # Which we count as we add/delete molecules from the system. 
+            # Which are counted as we add/delete molecules from the system using the molecule system member functions. 
             # Convert one of the sets of molecules to a list and extract the hash value of each unique type of molecule in the system.
             # Check that the number of each type of molecule is the same in both systems. 
             # Probably more relevant for solvent molecules and that sort of thing.
@@ -134,7 +147,7 @@ class ProteinSystem(MolecularSystem):
     def __init__(self):
         super(ProteinSystem, self).__init__()
 
-    def load_file(self, l_filename, parser='pymol', moleculeType='general', args='-qc'):
+    def load_file(self, l_filename, parser='pymol', args='-qc'):
         ''' Function overloads the function of the same name in the base class.
         It looks at a file and adds every molecule in the file 
         to the molecular system as a separate molecule, assuming the molecules 
@@ -155,6 +168,5 @@ class ProteinSystem(MolecularSystem):
         
         # loop through the graphs returned from the parser.
         for graph, coords in zip(l_graph_list, l_coords_list):
-            self.molecules[self.mol_id] = Protein(self.mol_id, coords, graph)
-            self.mol_id += 1
+            self.add_molecule(Protein(coords, graph))
     

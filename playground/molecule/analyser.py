@@ -6,7 +6,7 @@ class MolecularAnalyser(object):
 
     def __init__(self, *args, **kwargs):
         """ Initialise an analyser object """
-        print "Molecular Analyser Initialised"
+        pass
 
 
 

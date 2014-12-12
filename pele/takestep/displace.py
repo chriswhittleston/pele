@@ -16,7 +16,7 @@ class RandomDisplacement(TakestepSlice):
     """Random displacement on each individual coordinate
 
     RandomDisplacement is the most basic step taking routine. It simply
-    displaces each coordinate my a random value.
+    displaces each coordinate by a random value.
 
     Parameters
     ----------
