@@ -41,7 +41,7 @@ class Parser(object):
         
     def parse(self,filename):
         ''' FUnction manages the top level process of parsing a file'''
-        self.input_filename = filename
+        self.filename = filename
         self.load_data()
         self.form_graph()
         self.find_distinct_graphs()
@@ -49,10 +49,10 @@ class Parser(object):
     def load_data(self):
         ''' use the filename variable and args to load data.'''
         try:
-            with open(self.input_filename, "r") as f_in:
+            with open(self.filename, "r") as f_in:
                 self.raw_data = f_in.readlines()
         except IOError:
-            raise Exception("Unable to open file: " + self.input_filename)
+            raise Exception("Unable to open file: " + self.filename)
 
     def form_graph(self):
         ''' analyse the raw data to construct a graph.
@@ -77,7 +77,7 @@ class Parser(object):
     def find_distinct_graphs(self):
         ''' Analyse the components of a graph to find all the disconnected components.
         Each list of nodes is converted into a sub graph and the coords information is broken up 
-        into corresponding sublists.'''
+        into corresponding sublists indexed by a new atom_id.'''
  
         # analyse the components of the topology to find all the disconnected components
         self.component_list = nx.connected_component_subgraphs(self.topology)
@@ -102,7 +102,7 @@ class Parser(object):
                 self.coords_list[l_component_index][3 * l_new_atom_index + 2] = self.coords[3 * atom.id + 2]
  
                 # renumber atom 
-                atom.change_id(l_new_atom_index)
+                atom.assign_id(l_new_atom_index)
  
                 # increment the new atom index 
                 l_new_atom_index += 1
@@ -110,7 +110,7 @@ class Parser(object):
 class PymolParser(Parser):
     ''' This class takes an xyz or pdb file, and uses the pymol interface to
         parse the file and construct bond information.
-        
+        The p
         A graph is then constructed from the pymol information with
         a list of coords for each atom whose order correspondings to the
         id number in the atom class of each node. 

@@ -7,9 +7,6 @@ import networkx.algorithms.isomorphism as iso
 import numpy as np
 import os as os
 
-
-
-
 class Atom(object):
     """
     A minimal representation of an atom:
@@ -22,7 +19,7 @@ class Atom(object):
 
     def __init__(self, atom_id, symbol):
         # populate the member variables of the Atom class.
-        self.id = atom_id
+        self.assign_id(atom_id)
 
         # A variety of atomic naming conventions within molecules.
         # exist. E.g. H could be 1H, 2H, OH etc in a pdb file.
@@ -49,9 +46,6 @@ class Atom(object):
         self.radius = elem.elements[self.symbol]['radius']
         self.color = elem.elements[self.symbol]['color']
 
-    def change_id(self, new_id):
-        self.id = new_id
-
     def __eq__(self, other):
         ''' Function to determine if two atoms are the same type'''
         try:
@@ -65,7 +59,15 @@ class Atom(object):
 
     def __ne__(self, other):
         ''' Function to determine if two atoms are not same type'''
-        return self.symbol != other.symbol
+        try:
+            notEqual = self.symbol != other.symbol 
+        except:
+            # if other does not have the attribute symbol then it is not an Atom class
+            # so cannot be equal!
+            notEqual = True
+        
+        return notEqual
+
 
 class Molecule(object):
     """
@@ -77,6 +79,9 @@ class Molecule(object):
        state of the molecule.
     3) A collection of functions for performing operations to 
        molecules, such as rotate, translate etc.
+    4) Also computes the Hash value of a molecule which is a function
+       based on the topology and atomic weights which is likely to be unique
+       for each kind of molecule.
 
 
     self.topology     Network X Graph. Nodes are atoms and edges are bonds.
@@ -86,21 +91,21 @@ class Molecule(object):
                       So atom.id x coord is as coords[3*atom.id], 
                                           y at coords[3*atom.id + 1]
                                           z at coords[3*atom.id + 2]
+    self.hash_value  The product of the non-zero eigenvalues of a weighted adjacency
+                     matrix. The weights are the square root of the products of the atomic
+                     weights of the connected vertices.
+                     Computed once at molecule creation and again if the molecule topology
+                     is ever altered.
     """
 
-    def __init__(self, mol_id, coords, topology):
+    def __init__(self, coords, topology):
         """ Initialises an instance of a molecular class """
-        self.id = mol_id
         self.topology = topology
         self.coords = coords
         
         # compute the hash value at initialisation
         self.hash_value = None
         self.__hash__()
-
-    def change_id(self, new_id):
-        ''' function re identifies the molecule '''
-        self.id = new_id
 
     def __hash__(self):
         ''' Define a hashing function for the molecule.
@@ -143,7 +148,7 @@ class Molecule(object):
 
         # set up the function that is called to determine the node attribute
         # used to determine equality of the nodes        
-        nm = iso.categorical_node_match('symbol','H')
+        nm = iso.categorical_node_match('atom', Atom(0,'Xx'))
         
         # check that both networks are isomorphic - same number of
         # nodes and same edge connection pattern and that the node atom types 
